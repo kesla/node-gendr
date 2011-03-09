@@ -1,0 +1,7 @@
+{	"name"	: "gendr",
+	"version"	:			"0.0.1",
+	"description": 	"Simple library deciding what gender a given name is",
+	"author":				"David Björklund <david.bjorklund@gmail.com>",
+	"contributors":	[],
+	"main":					"./lib/genr.js",
+}
