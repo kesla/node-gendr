@@ -1,0 +1,2 @@
+Really simple library written in Coffeescript/Nodejs that checks the gender of names.
+Redis is used as a cache.
