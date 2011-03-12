@@ -1,14 +1,28 @@
-cache = require('redis').createClient()
 rest  = require 'restler'
 
-class CheckGender extends process.EventEmitter
-	constructor: (@names) ->
-		@response = {"M": 0, "F": 0, "U":0}
-		@names = [@names] unless @names instanceof Array
-		@followers = @names.length
+class Checker extends process.EventEmitter
+	constructor: (names, @cache) ->
+		names = [names] unless names instanceof Array
+		@response =
+			"M": 0
+			"F": 0
+			"U": 0
+		@followers = names.length
+		
+		#Check if names are in cache
+		notInCache = []
+		cache.mget names, (err, data) =>
+			for i in [0...data.length]
+				if(data[i]?)
+					@response[data[i]]++
+				else
+					notInCache.push names[i]
+			if notInCache.length > 0
+				for name, length of @remove_duplicates(notInCache)
+					@getGenderFromWikipedia(name, length)
+			else
+				@finish()
 
-	# Remove duplicates, going from a ["a", "b", "a"] stucture to 
-	# 	{"a": 2, "b": 1} structure.
 	remove_duplicates: (array) ->
 		array = [array] unless array instanceof Array
 		map = {}
@@ -17,11 +31,6 @@ class CheckGender extends process.EventEmitter
 			map[key]++
 		map
 
-	createEnUri: (name) ->
-		"http://en.wikipedia.org/w/api.php?action=query&titles=#{name}|#{name}%20%28name%29|#{name}%20%28given%20name%29&prop=categories&cllimit=500&format=json&redirects"
-
-	createSvUri: (name) ->
-		"http://sv.wikipedia.org/w/api.php?action=query&titles=#{name}|#{name}%20%28namn%29|#{name}%20%28förnamn%29&prop=categories&cllimit=500&format=json&&redirects"
 
 	setGender: (female, male, length, name)->
 		if (male and not female)
@@ -30,20 +39,21 @@ class CheckGender extends process.EventEmitter
 			gender = "F"
 		else
 			gender = "U"
-		cache.set name, gender
-		cache.expire(name, 7 * 24 * 60 * 60) if gender is "U" # Expire unknown/unisex efter a week
+		@cache.set name, gender
+		@cache.expire(name, 7 * 24 * 60 * 60) if gender is "U" # Expire unknown/unisex efter a week
 		@response[gender] += length
 
 
 	finish: ->
 		sum = 0
 		sum += count for gender, count of @response
-			
+		
 		if sum >= @followers
 			@emit 'finished', @response
 
-	checkGender: (name, length) ->
-		uri = @createEnUri name
+	getGenderFromWikipedia: (name, length) ->
+		# Check english wikipedia
+		uri = "http://en.wikipedia.org/w/api.php?action=query&titles=#{name}|#{name}%20%28name%29|#{name}%20%28given%20name%29&prop=categories&cllimit=500&format=json&redirects"
 		female = male = false
 		get = rest.get uri
 		get.on 'success', (data) =>
@@ -56,7 +66,8 @@ class CheckGender extends process.EventEmitter
 							if /(f|F)eminine given names$/.test category.title
 								female = true
 			if (not male and not female)
-				uri = @createSvUri name
+				# Check swedish wikipedia
+				uri = "http://sv.wikipedia.org/w/api.php?action=query&titles=#{name}|#{name}%20%28namn%29|#{name}%20%28förnamn%29&prop=categories&cllimit=500&format=json&&redirects"
 				get = rest.get(uri)
 				get.on 'success', (data) =>
 					if data.query?.pages?
@@ -72,21 +83,12 @@ class CheckGender extends process.EventEmitter
 			else
 				@setGender(female, male, length, name)
 				@finish()
-	run: () ->
-		notInCache = []
-		cache.mget @names, (err, data) =>
-			for i in [0...data.length]
-				if(data[i]?)
-					@response[data[i]]++
-				else
-					notInCache.push @names[i]
-			if notInCache.length > 0
-				for name, length of @remove_duplicates(notInCache)
-					@checkGender(name, length)
-			else
-				@finish()
-		return this
 
+class Gendr
+	constructor: (@cache) ->
 	
-exports.check = (names) ->
-	new CheckGender(names).run()
+	check: (names) ->
+		new Checker(names, @cache, this)
+
+exports.createClient = (cache = require('redis').createClient()) ->
+	new Gendr(cache)

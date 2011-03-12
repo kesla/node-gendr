@@ -1,6 +1,6 @@
 rest = require 'restler'
 util = require 'util'
-gendr = require('../lib/gendr')
+gendr = require('../lib/gendr').createClient()
 
 twitter = (username, cursor = -1, given_names = []) ->
 	if parseInt(cursor,10) is 0
