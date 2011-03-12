@@ -1,27 +1,11 @@
-<<<<<<< HEAD
 cache = require('redis').createClient()
 rest  = require 'restler'
-=======
-cache = 
-	try
-		require('redi').createClient()
-	catch e
-		{
-			set: (key, value) ->
-			get: (key, fun) ->
-				fun(null, null)
-		}
->>>>>>> 0cb3face0ab7aff5475b50213086a34ee35813d7
 
 class CheckGender extends process.EventEmitter
 	constructor: (@names) ->
 		@response = {"M": 0, "F": 0, "U":0}
 		@names = [@names] unless @names instanceof Array
 		@followers = @names.length
-<<<<<<< HEAD
-=======
-		@rest = require 'restler'
->>>>>>> 0cb3face0ab7aff5475b50213086a34ee35813d7
 
 	# Remove duplicates, going from a ["a", "b", "a"] stucture to 
 	# 	{"a": 2, "b": 1} structure.
@@ -47,6 +31,7 @@ class CheckGender extends process.EventEmitter
 		else
 			gender = "U"
 		cache.set name, gender
+		cache.expire(name, 7 * 24 * 60 * 60) if gender is "U" # Expire unknown/unisex efter a week
 		@response[gender] += length
 
 
@@ -65,11 +50,7 @@ class CheckGender extends process.EventEmitter
 			else
 				uri = @createEnUri name
 				female = male = false
-<<<<<<< HEAD
 				get = rest.get uri
-=======
-				get = @rest.get uri
->>>>>>> 0cb3face0ab7aff5475b50213086a34ee35813d7
 				get.on 'success', (data) =>
 					if data.query?.pages?
 						for id, data of data.query.pages
@@ -81,11 +62,7 @@ class CheckGender extends process.EventEmitter
 										female = true
 					if (not male and not female)
 						uri = @createSvUri name
-<<<<<<< HEAD
 						get = rest.get(uri)
-=======
-						get = @rest.get(uri)
->>>>>>> 0cb3face0ab7aff5475b50213086a34ee35813d7
 						get.on 'success', (data) =>
 							if data.query?.pages?
 								for id, data of data.query.pages
