@@ -4,11 +4,12 @@ gendr = require('../lib/gendr').createClient()
 
 twitter = (username, cursor = -1, given_names = []) ->
 	if parseInt(cursor,10) is 0
+		start2 = new Date()
 		gendr.check(given_names).on 'finished', (data) ->
+			util.log "getting gender from gendr #{new Date() - start2} ms"
 			util.log "#{username}:"
 			util.log JSON.stringify data
-			diff = new Date() - start
-			util.log "#{diff} ms"
+			util.log "Total time: #{new Date() - start} ms"
 	else
 		uri = "http://api.twitter.com/1/statuses/friends/#{username}.json?cursor=#{cursor}"
 		start2 = new Date()
