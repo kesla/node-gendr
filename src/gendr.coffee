@@ -43,43 +43,48 @@ class CheckGender extends process.EventEmitter
 			@emit 'finished', @response
 
 	checkGender: (name, length) ->
-		cache.get name, (err, gender) =>
-			if gender?
-				@response[gender] += length
-				@finish()
-			else
-				uri = @createEnUri name
-				female = male = false
-				get = rest.get uri
+		uri = @createEnUri name
+		female = male = false
+		get = rest.get uri
+		get.on 'success', (data) =>
+			if data.query?.pages?
+				for id, data of data.query.pages
+					if data.categories?
+						for category in data.categories
+							if /(m|M)asculine given names$/.test category.title
+								male = true
+							if /(f|F)eminine given names$/.test category.title
+								female = true
+			if (not male and not female)
+				uri = @createSvUri name
+				get = rest.get(uri)
 				get.on 'success', (data) =>
 					if data.query?.pages?
 						for id, data of data.query.pages
 							if data.categories?
 								for category in data.categories
-									if /(m|M)asculine given names$/.test category.title
+									if /(m|M)ansnamn$/.test category.title
 										male = true
-									if /(f|F)eminine given names$/.test category.title
+									if /(k|K)vinnonamn$/.test category.title
 										female = true
-					if (not male and not female)
-						uri = @createSvUri name
-						get = rest.get(uri)
-						get.on 'success', (data) =>
-							if data.query?.pages?
-								for id, data of data.query.pages
-									if data.categories?
-										for category in data.categories
-											if /(m|M)ansnamn$/.test category.title
-												male = true
-											if /(k|K)vinnonamn$/.test category.title
-												female = true
-							@setGender(female, male, length, name)
-							@finish()
-					else
-						@setGender(female, male, length, name)
-						@finish()
+					@setGender(female, male, length, name)
+					@finish()
+			else
+				@setGender(female, male, length, name)
+				@finish()
 	run: () ->
-		for name, length of @remove_duplicates(@names)
-			@checkGender(name, length)
+		notInCache = []
+		cache.mget @names, (err, data) =>
+			for i in [0...data.length]
+				if(data[i]?)
+					@response[data[i]]++
+				else
+					notInCache.push @names[i]
+			if notInCache.length > 0
+				for name, length of @remove_duplicates(notInCache)
+					@checkGender(name, length)
+			else
+				@finish()
 		return this
 
 	
