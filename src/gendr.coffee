@@ -11,17 +11,22 @@ class Checker extends process.EventEmitter
 		
 		#Check if names are in cache
 		notInCache = []
-		cache.mget names, (err, data) =>
-			for i in [0...data.length]
-				if(data[i]?)
-					@response[data[i]]++
+
+		if @cache
+			@cache.mget names, (err, data) =>
+				for i in [0...data.length]
+					if(data[i]?)
+						@response[data[i]]++
+					else
+						notInCache.push names[i]
+				if notInCache.length > 0
+					for name, length of @remove_duplicates(notInCache)
+						@getGenderFromWikipedia(name, length)
 				else
-					notInCache.push names[i]
-			if notInCache.length > 0
-				for name, length of @remove_duplicates(notInCache)
-					@getGenderFromWikipedia(name, length)
-			else
-				@finish()
+					@finish()
+		else
+			for name, length of @remove_duplicates(names)
+				@getGenderFromWikipedia(name, length)
 
 	remove_duplicates: (array) ->
 		array = [array] unless array instanceof Array
@@ -39,8 +44,9 @@ class Checker extends process.EventEmitter
 			gender = "F"
 		else
 			gender = "U"
-		@cache.set name, gender
-		@cache.expire(name, 7 * 24 * 60 * 60) if gender is "U" # Expire unknown/unisex efter a week
+		if @cache
+			@cache.set name, gender
+			@cache.expire(name, 7 * 24 * 60 * 60) if gender is "U" # Expire unknown/unisex efter a week
 		@response[gender] += length
 
 
