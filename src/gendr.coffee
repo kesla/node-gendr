@@ -2,7 +2,11 @@ rest  = require 'restler'
 
 class Checker extends process.EventEmitter
 	constructor: (names, @cache) ->
-		@names = if names instanceof Array then names else  [names]
+		names = if names instanceof Array then names else [names]
+		# Normalize all strings, first char as uppercase and the rest lowercase
+		# e.g. "dAvID" -> "David"
+		@names = (name[0].toUpperCase() + name[1..].toLowerCase() for name in names)
+		
 		@response =
 			"M": 0
 			"F": 0
