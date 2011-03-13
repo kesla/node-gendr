@@ -5,8 +5,11 @@ class Checker extends process.EventEmitter
 		names = if names instanceof Array then names else [names]
 		# Normalize all strings, first char as uppercase and the rest lowercase
 		# e.g. "dAvID" -> "David"
-		names = (name[0].toUpperCase() + name[1..].toLowerCase() for name in names)
-		
+		names = for name in names
+			# Split is needed so that names like Ann-Sofie doesn't become Ann-sofie
+			(for namePart in name.split("-")
+				namePart[0].toUpperCase() + namePart[1..].toLowerCase()).join("-")
+
 		@response = {}
 		for name in names
 			@response[name] = {length: 0} unless @response[name]?
