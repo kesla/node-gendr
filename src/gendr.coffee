@@ -2,40 +2,39 @@ rest  = require 'restler'
 
 class Checker extends process.EventEmitter
 	constructor: (names, @cache) ->
-		names = [names] unless names instanceof Array
+		@names = if names instanceof Array then names else  [names]
 		@response =
 			"M": 0
 			"F": 0
 			"U": 0
-		@followers = names.length
 		
-		#Check if names are in cache
-		notInCache = []
-
+		#Check if any name are in the cache
 		if @cache
-			@cache.mget names, (err, data) =>
+			notInCache = []
+			@cache.mget @names, (err, data) =>
 				for i in [0...data.length]
 					if(data[i]?)
 						@response[data[i]]++
 					else
-						notInCache.push names[i]
+						notInCache.push @names[i]
 				if notInCache.length > 0
-					for name, length of @remove_duplicates(notInCache)
+					for name, length of @removeDuplicates(notInCache)
 						@getGenderFromWikipedia(name, length)
 				else
 					@finish()
 		else
-			for name, length of @remove_duplicates(names)
+			for name, length of @removeDuplicates(@names)
 				@getGenderFromWikipedia(name, length)
-
-	remove_duplicates: (array) ->
-		array = [array] unless array instanceof Array
+	###
+	Remove duplicates and transform an array (e.g. ["A", "B", "A"]) to a map 
+		(e.g. {"A":2, "B":1})
+	###
+	removeDuplicates: (array) ->
 		map = {}
 		for key in array
 			map[key] = 0 unless map[key]?
 			map[key]++
 		map
-
 
 	setGender: (female, male, length, name)->
 		if (male and not female)
@@ -49,12 +48,11 @@ class Checker extends process.EventEmitter
 			@cache.expire(name, 7 * 24 * 60 * 60) if gender is "U" # Expire unknown/unisex efter a week
 		@response[gender] += length
 
-
 	finish: ->
 		sum = 0
 		sum += count for gender, count of @response
 		
-		if sum >= @followers
+		if sum >= @names.length
 			@emit 'finished', @response
 
 	getGenderFromWikipedia: (name, length) ->

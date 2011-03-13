@@ -9,7 +9,6 @@ twitter = (username, cursor = -1, given_names = []) ->
 			util.log "getting gender from gendr #{new Date() - start2} ms"
 			util.log "#{username}:"
 			util.log JSON.stringify data
-			util.log "Total time: #{new Date() - start} ms"
 	else
 		uri = "http://api.twitter.com/1/statuses/friends/#{username}.json?cursor=#{cursor}"
 		start2 = new Date()
@@ -19,6 +18,5 @@ twitter = (username, cursor = -1, given_names = []) ->
 				given_names.push user.name.split(" ")[0]
 			twitter(username, data.next_cursor, given_names)
 
-start = new Date()
 twitter "david_bjorklund"
 twitter "krenholm"
