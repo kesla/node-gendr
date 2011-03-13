@@ -14,6 +14,10 @@ class Checker extends process.EventEmitter
 		for name in names
 			@response[name] = {length: 0} unless @response[name]?
 			@response[name].length++
+		# @wiki is an object used to collect intermediate results from wikipedia
+		@wiki =
+			en: {}
+			sv: {}
 		
 		#Check if any name are in the cache
 		uniqueNames = (name for name, data of @response)
@@ -34,17 +38,23 @@ class Checker extends process.EventEmitter
 			for name in uniqueNames
 				@getGenderFromWikipedia(name)
 
-	setGender: (female, male, length, name)->
-		if (male and not female)
-			gender = "M"
-		else if (female and not male)
-			gender = "F"
-		else
-			gender = "U"
-		if @cache
-			@cache.set name, gender
-			@cache.expire(name, 7 * 24 * 60 * 60) if gender is "U" # Expire unknown/unisex efter a week
-		@response[name].gender = gender
+	setGender: (name)->
+		en = @wiki["en"][name]
+		sv = @wiki["sv"][name]
+		if en? and sv?
+			if en is "F" and sv is "M" or en is "M" and sv is "F"
+				gender = "U"
+			else if en is "F" or sv is "F"
+				gender = "F"
+			else if en is "M" or sv is "M"
+				gender = "M"
+			else
+				gender = "U"
+		
+			if @cache
+				@cache.set name, gender
+				@cache.expire(name, 7 * 24 * 60 * 60) if gender is "U" # Expire unknown/unisex efter a week
+			@response[name].gender = gender
 
 	finish: ->
 		for name, {gender: gender} of @response
@@ -52,38 +62,45 @@ class Checker extends process.EventEmitter
 		
 		@emit 'finished', @response
 
-	getGenderFromWikipedia: (name, length) ->
+	getGenderFromWikipedia: (name) ->
+		
 		# Check english wikipedia
-		uri = "http://en.wikipedia.org/w/api.php?action=query&titles=#{name}|#{name}%20%28name%29|#{name}%20%28given%20name%29&prop=categories&cllimit=500&format=json&redirects"
-		female = male = false
-		get = rest.get uri
-		get.on 'success', (data) =>
+		enWiki = rest.get "http://en.wikipedia.org/w/api.php?action=query&titles=#{name}|#{name}%20%28name%29|#{name}%20%28given%20name%29&prop=categories&cllimit=500&format=json&redirects"
+		enWiki.on 'success', (data) =>
+			male = female = false
 			if data.query?.pages?
 				for id, data of data.query.pages
 					if data.categories?
 						for category in data.categories
-							if /(m|M)asculine given names$/.test category.title
-								male = true
-							if /(f|F)eminine given names$/.test category.title
-								female = true
-			if (not male and not female)
-				# Check swedish wikipedia
-				uri = "http://sv.wikipedia.org/w/api.php?action=query&titles=#{name}|#{name}%20%28namn%29|#{name}%20%28förnamn%29&prop=categories&cllimit=500&format=json&&redirects"
-				get = rest.get(uri)
-				get.on 'success', (data) =>
-					if data.query?.pages?
-						for id, data of data.query.pages
-							if data.categories?
-								for category in data.categories
-									if /(m|M)ansnamn$/.test category.title
-										male = true
-									if /(k|K)vinnonamn$/.test category.title
-										female = true
-					@setGender(female, male, length, name)
-					@finish()
+							male = male or /(m|M)asculine given names$/.test category.title
+							female = female or /(f|F)eminine given names$/.test category.title
+			if male and not female
+				@wiki["en"][name] = "M"
+			else if female and not male
+				@wiki["en"][name] = "F"
 			else
-				@setGender(female, male, length, name)
-				@finish()
+				@wiki["en"][name] = "U"
+			@setGender name
+			@finish()
+
+		# Check swedish wikipedia
+		svWiki = rest.get "http://sv.wikipedia.org/w/api.php?action=query&titles=#{name}|#{name}%20%28namn%29|#{name}%20%28förnamn%29&prop=categories&cllimit=500&format=json&&redirects"
+		svWiki.on 'success', (data) =>
+			female = male = false
+			if data.query?.pages?
+				for id, data of data.query.pages
+					if data.categories?
+						for category in data.categories
+							male = male or /(m|M)ansnamn$/.test category.title
+							female = female or /(k|K)vinnonamn$/.test category.title
+			if male and not female
+				@wiki["sv"][name] = "M"
+			else if female and not male
+				@wiki["sv"][name] = "F"
+			else
+				@wiki["sv"][name] = "U"
+			@setGender name
+			@finish()
 
 class Gendr
 	constructor: (@cache) ->
