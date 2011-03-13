@@ -1,7 +1,15 @@
-{	"name"	: "gendr",
-	"version"	:			"0.0.1",
-	"description": 	"Simple library deciding what gender a given name is",
+{	"name": 				"gendr",
+	"version":			"0.0.1",
+	"description": 	"Library deciding what gender a given name is",
 	"author":				"David Björklund <david.bjorklund@gmail.com>",
 	"contributors":	[],
-	"main":					"./lib/genr.js",
+	"main":					"./lib/gendr.js",
+	"repository": {
+        "type": "git",
+        "url": "git://github.com/kesla/node-gendr.git"
+    },
+  "homepage":		"https://github.com/kesla/node-gendr",
+  "dependencies": {
+  			"restler": "*"
+  	}
 }
