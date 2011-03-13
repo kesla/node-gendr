@@ -5,40 +5,31 @@ class Checker extends process.EventEmitter
 		names = if names instanceof Array then names else [names]
 		# Normalize all strings, first char as uppercase and the rest lowercase
 		# e.g. "dAvID" -> "David"
-		@names = (name[0].toUpperCase() + name[1..].toLowerCase() for name in names)
+		names = (name[0].toUpperCase() + name[1..].toLowerCase() for name in names)
 		
-		@response =
-			"M": 0
-			"F": 0
-			"U": 0
+		@response = {}
+		for name in names
+			@response[name] = {length: 0} unless @response[name]?
+			@response[name].length++
 		
 		#Check if any name are in the cache
+		uniqueNames = (name for name, data of @response)
 		if @cache
 			notInCache = []
-			@cache.mget @names, (err, data) =>
+			@cache.mget uniqueNames, (err, data) =>
 				for i in [0...data.length]
 					if(data[i]?)
-						@response[data[i]]++
+						@response[uniqueNames[i]].gender = data[i]
 					else
-						notInCache.push @names[i]
+						notInCache.push uniqueNames[i]
 				if notInCache.length > 0
-					for name, length of @removeDuplicates(notInCache)
-						@getGenderFromWikipedia(name, length)
+					for name in notInCache
+						@getGenderFromWikipedia(name)
 				else
 					@finish()
 		else
-			for name, length of @removeDuplicates(@names)
-				@getGenderFromWikipedia(name, length)
-	###
-	Remove duplicates and transform an array (e.g. ["A", "B", "A"]) to a map 
-		(e.g. {"A":2, "B":1})
-	###
-	removeDuplicates: (array) ->
-		map = {}
-		for key in array
-			map[key] = 0 unless map[key]?
-			map[key]++
-		map
+			for name in uniqueNames
+				@getGenderFromWikipedia(name)
 
 	setGender: (female, male, length, name)->
 		if (male and not female)
@@ -50,14 +41,13 @@ class Checker extends process.EventEmitter
 		if @cache
 			@cache.set name, gender
 			@cache.expire(name, 7 * 24 * 60 * 60) if gender is "U" # Expire unknown/unisex efter a week
-		@response[gender] += length
+		@response[name].gender = gender
 
 	finish: ->
-		sum = 0
-		sum += count for gender, count of @response
+		for name, {gender: gender} of @response
+			return unless gender?
 		
-		if sum >= @names.length
-			@emit 'finished', @response
+		@emit 'finished', @response
 
 	getGenderFromWikipedia: (name, length) ->
 		# Check english wikipedia
