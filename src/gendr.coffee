@@ -11,6 +11,7 @@ class Checker extends process.EventEmitter
 				namePart[0].toUpperCase() + namePart[1..].toLowerCase()).join("-")
 
 		@response = {}
+
 		for name in names
 			@response[name] = {length: 0} unless @response[name]?
 			@response[name].length++
@@ -30,13 +31,15 @@ class Checker extends process.EventEmitter
 					else
 						notInCache.push uniqueNames[i]
 				if notInCache.length > 0
-					for name in notInCache
-						@getGenderFromWikipedia(name)
+					for i in [0...notInCache.length] by 10
+						names = notInCache[i...Math.min(notInCache.length, i+10)]
+						@getGenderFromWikipedia names
 				else
 					@finish()
 		else
-			for name in uniqueNames
-				@getGenderFromWikipedia(name)
+			for i in [0...uniqueNames.length] by 10
+				names = uniqueNames[i...Math.min(uniqueNames.length, i+10)]
+				@getGenderFromWikipedia names
 
 	setGender: (name)->
 		en = @wiki["en"][name]
@@ -62,44 +65,68 @@ class Checker extends process.EventEmitter
 		
 		@emit 'finished', @response
 
-	getGenderFromWikipedia: (name) ->
-		
+	getGenderFromWikipedia: (names) ->
+
+		enTitle = (raw_name) ->
+			name = escape raw_name
+			"#{name}|#{name}%20%28name%29|#{name}%20%28given%20name%29"
+		enTitles = (enTitle(name) for name in names).join("|")
+
 		# Check english wikipedia
-		enWiki = rest.get "http://en.wikipedia.org/w/api.php?action=query&titles=#{name}|#{name}%20%28name%29|#{name}%20%28given%20name%29&prop=categories&cllimit=500&format=json&redirects"
+		enWiki = rest.get "http://en.wikipedia.org/w/api.php?action=query&titles=#{enTitles}&prop=categories&cllimit=500&format=json&redirects"
 		enWiki.on 'success', (data) =>
-			male = female = false
-			if data.query?.pages?
-				for id, data of data.query.pages
-					if data.categories?
-						for category in data.categories
-							male = male or /(m|M)asculine given names$/.test category.title
-							female = female or /(f|F)eminine given names$/.test category.title
-			if male and not female
-				@wiki["en"][name] = "M"
-			else if female and not male
-				@wiki["en"][name] = "F"
-			else
-				@wiki["en"][name] = "U"
-			@setGender name
+			for name in names
+				male = female = false
+				aliases = [name]
+				if data.query?.redirects?
+					for {from: from, to:to} in data.query.redirects
+						if from.indexOf(name) isnt -1
+							aliases.push to
+				if data.query?.pages?
+					for id, info of data.query.pages
+						for alias in aliases
+							if info.categories? and info.title?.indexOf(alias) isnt -1
+								for category in info.categories
+									male = male or /(m|M)asculine given names$/.test category.title
+									female = female or /(f|F)eminine given names$/.test category.title
+				if male and not female
+					@wiki["en"][name] = "M"
+				else if female and not male
+					@wiki["en"][name] = "F"
+				else
+					@wiki["en"][name] = "U"
+				@setGender name
 			@finish()
 
+		svTitle = (raw_name) ->
+			name = escape raw_name
+			"#{name}|#{name}%20%28namn%29|#{name}%20%28förnamn%29"
+		svTitles = (svTitle(name) for name in names).join("|")
+		
 		# Check swedish wikipedia
-		svWiki = rest.get "http://sv.wikipedia.org/w/api.php?action=query&titles=#{name}|#{name}%20%28namn%29|#{name}%20%28förnamn%29&prop=categories&cllimit=500&format=json&&redirects"
+		svWiki = rest.get "http://sv.wikipedia.org/w/api.php?action=query&titles=#{svTitles}&prop=categories&cllimit=500&format=json&&redirects"
 		svWiki.on 'success', (data) =>
-			female = male = false
-			if data.query?.pages?
-				for id, data of data.query.pages
-					if data.categories?
-						for category in data.categories
-							male = male or /(m|M)ansnamn$/.test category.title
-							female = female or /(k|K)vinnonamn$/.test category.title
-			if male and not female
-				@wiki["sv"][name] = "M"
-			else if female and not male
-				@wiki["sv"][name] = "F"
-			else
-				@wiki["sv"][name] = "U"
-			@setGender name
+			for name in names
+				female = male = false
+				aliases = [name]
+				if data.query?.redirects?
+					for {from: from, to:to} in data.query.redirects
+						if from.indexOf(name) isnt -1
+							aliases.push to
+				if data.query?.pages?
+					for id, info of data.query.pages
+						for alias in aliases
+							if info.categories? and info.title?.indexOf(alias) isnt -1
+								for category in info.categories
+									male = male or /(m|M)ansnamn$/.test category.title
+									female = female or /(k|K)vinnonamn$/.test category.title
+				if male and not female
+					@wiki["sv"][name] = "M"
+				else if female and not male
+					@wiki["sv"][name] = "F"
+				else
+					@wiki["sv"][name] = "U"
+				@setGender name
 			@finish()
 
 class Gendr
